@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ConvexProvider, OptionalRestArgsOrSkip } from "convex/react";
 import { FunctionReference, FunctionReturnType } from "convex/server";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { ConvexQueryCacheContext } from "./provider";
 
 /**
@@ -24,8 +24,15 @@ export function useQuery<Query extends FunctionReference<"query">>(
   query: Query,
   ...queryArgs: OptionalRestArgsOrSkip<Query>
 ): FunctionReturnType<Query> {
-  const [v, setV] = useState();
+  let skipping = false;
+  const args = useMemo(() => queryArgs[0] ?? {}, [queryArgs]);
+  if (args === "skip") {
+    skipping = true;
+  }
   const { registry } = useContext(ConvexQueryCacheContext);
+  const initialValue =
+    registry === null || skipping ? undefined : registry.probe(query, args);
+  const [v, setV] = useState(initialValue);
   if (registry === null) {
     throw new Error(
       "Could not find `ConvexQueryCacheContext`! This `useQuery` implementation must be used in the React component " +
@@ -34,9 +41,8 @@ export function useQuery<Query extends FunctionReference<"query">>(
   }
 
   useEffect(() => {
-    const args = queryArgs[0] ?? {};
-    if (args === "skip") {
-      // Make no subscriptions...
+    if (skipping) {
+      // No subscriptions.
       return;
     }
     const id = crypto.randomUUID();
@@ -45,6 +51,6 @@ export function useQuery<Query extends FunctionReference<"query">>(
     return () => {
       registry.end(id);
     };
-  }, [registry, query, queryArgs, setV]);
+  }, [registry, query, args, skipping, setV]);
   return v;
 }

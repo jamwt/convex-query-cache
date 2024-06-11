@@ -51,6 +51,25 @@ class CacheRegistry {
       }, 3000);
     }
   }
+  #getQueryEntry<Query extends FunctionReference<"query">>(
+    query: Query,
+    args: FunctionArgs<Query>
+  ): [CachedQuery<Query> | undefined, QueryKey] {
+    const queryString = getFunctionName(query);
+    const key = [queryString, convexToJson(args)];
+    const queryKey = JSON.stringify(key);
+    const entry = this.queries.get(queryKey);
+    return [entry as CachedQuery<Query> | undefined, queryKey];
+  }
+
+  probe<Query extends FunctionReference<"query">>(
+    query: Query,
+    args: FunctionArgs<Query>
+  ): FunctionReturnType<Query> | undefined {
+    const [maybeQuery] = this.#getQueryEntry(query, args);
+    return maybeQuery === undefined ? undefined : maybeQuery.value;
+  }
+
   // Enable a new subscription.
   start<Query extends FunctionReference<"query">>(
     id: string,
@@ -58,14 +77,13 @@ class CacheRegistry {
     args: FunctionArgs<Query>,
     setter: (v: FunctionReturnType<Query>) => void
   ): void {
-    const queryString = getFunctionName(query);
-    const key = [queryString, convexToJson(args)];
-    const queryKey = JSON.stringify(key);
+    const results = this.#getQueryEntry(query, args);
+    let entry = results[0];
+    const queryKey = results[1];
     this.subs.set(id, {
       queryKey,
       setter,
     });
-    let entry = this.queries.get(queryKey);
     if (entry === undefined) {
       entry = {
         refs: new Set(),
