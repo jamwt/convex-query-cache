@@ -40,8 +40,14 @@ class CacheRegistry {
     this.timeout = options.expiration ?? DEFAULT_EXPIRATION_MS;
     this.maxIdleEntries = options.maxIdleEntries ?? DEFAULT_MAX_ENTRIES;
     if (options.debug ?? false) {
-      setInterval(() => {
-        this.debug();
+      const weakThis = new WeakRef(this);
+      const debugInterval = setInterval(() => {
+        const r = weakThis.deref();
+        if (r === undefined) {
+          clearInterval(debugInterval);
+        } else {
+          r.debug();
+        }
       }, 3000);
     }
   }
