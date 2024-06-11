@@ -3,6 +3,7 @@ import { ConvexProvider, OptionalRestArgsOrSkip } from "convex/react";
 import { FunctionReference, FunctionReturnType } from "convex/server";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { ConvexQueryCacheContext } from "./provider";
+import { createQueryKey } from "./core";
 
 /**
  * Load a reactive query within a React component.
@@ -29,9 +30,12 @@ export function useQuery<Query extends FunctionReference<"query">>(
   if (args === "skip") {
     skipping = true;
   }
+  const queryKey = skipping ? undefined : createQueryKey(query, args);
   const { registry } = useContext(ConvexQueryCacheContext);
   const initialValue =
-    registry === null || skipping ? undefined : registry.probe(query, args);
+    registry === null || queryKey === undefined
+      ? undefined
+      : registry.probe(queryKey!);
   const [v, setV] = useState(initialValue);
   if (registry === null) {
     throw new Error(
@@ -40,17 +44,22 @@ export function useQuery<Query extends FunctionReference<"query">>(
     );
   }
 
-  useEffect(() => {
-    if (skipping) {
-      // No subscriptions.
-      return;
-    }
-    const id = crypto.randomUUID();
-    registry.start(id, query, args, setV);
+  useEffect(
+    () => {
+      if (queryKey === undefined) {
+        // No subscriptions.
+        return;
+      }
+      const id = crypto.randomUUID();
+      registry.start(id, queryKey, query, args, setV);
 
-    return () => {
-      registry.end(id);
-    };
-  }, [registry, query, args, skipping, setV]);
+      return () => {
+        registry.end(id);
+      };
+    },
+    // Safe to ignore query and args since queryKey is derived from them
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [registry, queryKey, setV]
+  );
   return v;
 }
