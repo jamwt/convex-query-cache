@@ -3,6 +3,7 @@ import {
   FunctionArgs,
   FunctionReference,
   FunctionReturnType,
+  getFunctionName,
 } from "convex/server";
 import { convexToJson } from "convex/values";
 import { createContext, FC, PropsWithChildren } from "react";
@@ -51,7 +52,8 @@ class CacheRegistry {
     args: FunctionArgs<Query>,
     setter: (v: FunctionReturnType<Query>) => void
   ): void {
-    const key = [convexToJson(query), convexToJson(args)];
+    const queryString = getFunctionName(query);
+    const key = [queryString, convexToJson(args)];
     const queryKey = JSON.stringify(key);
     this.subs.set(id, {
       queryKey,
